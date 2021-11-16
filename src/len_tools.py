@@ -1,11 +1,19 @@
-import os, re
+import os, re, ast
+import geojson, boto3, rasterio
+import rasterio.transform
+
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+
+from rasterio.profiles import DefaultGTiffProfile
 from datetime import datetime
 from pandas import Timestamp
-import pandas as pd
-import ast
-import geojson
 from shapely.geometry import shape, Point
-import geopandas as gpd
+from GOSTRocks.misc import tPrint
+from botocore.config import Config
+from botocore import UNSIGNED
+
 # try:
 #     import eemont
 # except:
@@ -18,23 +26,30 @@ import geopandas as gpd
 pd.set_option('display.max_colwidth', None)
 repo_dir = os.path.dirname(os.path.realpath(__file__)) # if Notebooks could also access thorugh ..
 
+# Read in quality values from metadata
+with open(os.path.join(repo_dir, "catalog", "new_good_vflag_ints.txt")) as inData:
+    good_viirs_flags = [int(line) for line in inData]
+
 class Catalog(object):
     '''
     '''
     def __init__(self, scenes = None):
         def load_scenes():
             scenes = pd.read_csv(os.path.join(repo_dir, "catalog/VIIRS_Catalog_Final.csv"), index_col = 0) # nrows=5000
-            scenes['date'] = pd.to_datetime(scenes.date)
-            scenes['datetime'] = pd.to_datetime(scenes.datetime)
-            scenes['ym'] = scenes.date.dt.strftime('%Y-%m')
-            scenes['bbox'] = scenes.bbox.apply(lambda x: ast.literal_eval(x))
-            scenes['minx'] = scenes.bbox.apply(lambda x: x[0])
-            scenes['miny'] = scenes.bbox.apply(lambda x: x[1])
-            scenes['maxx'] = scenes.bbox.apply(lambda x: x[2])
-            scenes['maxy'] = scenes.bbox.apply(lambda x: x[3])
-            # scenes['geometry_geojson'] = scenes.geometry.apply(lambda x: geojson.loads(x.replace("'", '"')))
-            scenes['geometry'] = scenes.geometry.apply(lambda x: shape(geojson.loads(x.replace("'", '"'))))
-            return scenes
+            try:
+                scenes['date'] = pd.to_datetime(scenes.date)
+                scenes['datetime'] = pd.to_datetime(scenes.datetime)
+                scenes['ym'] = scenes.date.dt.strftime('%Y-%m')
+                scenes['bbox'] = scenes.bbox.apply(lambda x: ast.literal_eval(x))
+                scenes['minx'] = scenes.bbox.apply(lambda x: x[0])
+                scenes['miny'] = scenes.bbox.apply(lambda x: x[1])
+                scenes['maxx'] = scenes.bbox.apply(lambda x: x[2])
+                scenes['maxy'] = scenes.bbox.apply(lambda x: x[3])
+                # scenes['geometry_geojson'] = scenes.geometry.apply(lambda x: geojson.loads(x.replace("'", '"')))
+                scenes['geometry'] = scenes.geometry.apply(lambda x: shape(geojson.loads(x.replace("'", '"'))))
+                return(scenes)
+            except:
+                return(scenes)
         self.scenes = load_scenes() if scenes is None else scenes
 
     def __str__(self):
@@ -109,7 +124,7 @@ class Catalog(object):
         else:
             raise Exception("No hits!")
 
-    def search_by_intersect(self, aoi):
+    def search_by_intersect(self, aoi, calc_overlap = False):
         '''
         get all scenes that intersect a time period:
             scenes date >= start_day
@@ -124,7 +139,116 @@ class Catalog(object):
                 aoi = aoi.to_crs('EPSG:4326')
             query = aoi.geometry.unary_union
         search_results = self.scenes.loc[(self.scenes.intersects(query))]
+        if calc_overlap:        
+            def calculate_overlap(a1, a2):
+                intersection = a1.intersection(a2)
+                return(intersection.area/a1.area)                            
+            search_results['overlap'] = search_results['geometry'].apply(lambda x: calculate_overlap(aoi.unary_union, x))
+        
         if len(search_results)>0:
             return Catalog(search_results)
         else:
             raise Exception("No hits!")
+
+            
+class VIIRS_cleaner(object):
+    ''' Combine nightly VIIRS images into composite
+    '''
+    def __init__(self, aws_bucket, scenes, geometry):
+        ''' Create nightly VIIRS composites
+        
+        Input
+            aws_bucket (string) - base path to AWS bucket storing nighttinme lights, should be globalnightlight
+            catalog (len_tools.Catalog) - nightlights search object
+            geometry (shapely polygon) - object used to crop nighttime imagery                       
+        '''
+        
+        self.aws_bucket = aws_bucket
+        self.scenes = scenes
+        self.geometry = geometry
+        
+    def viirs_night(self, rade_file):
+        ''' Search for the corresponding files matching the provided rad_file
+        '''
+        aws_bucket = self.aws_bucket
+        month = rade_file.split("/")[-2]
+        file_name = rade_file.split("/")[-1]
+        day     = file_name.split("_")[2]
+        time    = file_name.split("_")[3]
+        e_thing = file_name.split("_")[4]
+        # search through bucket to find other files matching that day
+        s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+        sel_files = []
+        truncated = True
+        continuation = ''
+        sel_month = s3.list_objects_v2(Bucket=aws_bucket, Prefix=month)        
+        n_loops = 0
+        while truncated:
+            #print(n_loops)
+            #return(sel_month)
+            truncated = sel_month['IsTruncated']        
+            for item in sel_month['Contents']:
+                if (day in item['Key']) & (time in item['Key']):# & (e_thing in item['Key']):
+                    sel_files.append(item['Key'])
+            if truncated:
+                sel_month = s3.list_objects_v2(Bucket='globalnightlight', Prefix=month, ContinuationToken=sel_month['NextContinuationToken'])        
+            n_loops = n_loops+1
+        return(sel_files)
+        
+    def clean_viirs_data(self):
+        ''' combine images found in scenes into a single output raster
+        '''
+        scenes = self.scenes
+        geometry = self.geometry
+        n_loops = 0
+        for idx, row in scenes.iterrows():
+            tPrint(f'{row.col_id}: {n_loops} of {scenes.shape[0]}')
+            n_loops = n_loops + 1
+            # Get the input files
+            xx = self.viirs_night(row['filename'])
+            http_base = os.path.dirname(os.path.dirname(row.href))
+            self.http_base = http_base
+            
+            inRad = rasterio.open(os.path.join(http_base, xx[3]))
+            inFlag = rasterio.open(os.path.join(http_base, xx[-1]))
+            
+            ul = inRad.index(*geometry.bounds[0:2])
+            lr = inRad.index(*geometry.bounds[2:4])
+            window = ((float(lr[0]), float(ul[0]+1)), (float(ul[1]), float(lr[1]+1)))
+            
+            inRad_data = inRad.read(1, window=window, boundless=True, fill_value=0)
+            inFlag_data = inFlag.read(1, window=window, boundless=True, fill_value=0)
+            
+            good_data = np.isin(inFlag_data, good_viirs_flags).astype(int)
+            good_rad = inRad_data * good_data
+            #try:
+            if n_loops > 1:            
+                final_data  = final_data + good_rad
+                final_count = final_count + good_data
+            else:
+                final_data = good_rad
+                final_count = good_data
+            #except:
+            #    print(f'Error processing {idx}')
+        self.final_data = final_data
+        self.final_count = final_count
+        return({'data':final_data, 'count':final_count})
+        
+    def write_output(self, out_folder, file_base):
+        b = self.geometry.bounds
+        new_transform = rasterio.transform.from_bounds(b[0], b[1], b[2], b[3], self.final_data.shape[1], self.final_data.shape[0])
+
+        profile = DefaultGTiffProfile()
+        profile.update(width=self.final_data.shape[1], height=self.final_data.shape[0],
+                      transform = new_transform, crs="epsg:4326",
+                      count=1, dtype='float32')
+
+        with rasterio.open(os.path.join(out_folder, f'{file_base}_rad.tif'), 'w', **profile) as outR:
+            outR.write_band(1, self.final_data/self.final_count)
+            
+        with rasterio.open(os.path.join(out_folder, f'{file_base}_count.tif'), 'w', **profile) as outR:
+            outR.write_band(1, self.final_count)
+    
+    
+    
+    

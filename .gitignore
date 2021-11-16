@@ -1,3 +1,6 @@
+# data files
+src/catalog/VIIRS_Catalog_Final.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
