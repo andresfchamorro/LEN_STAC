@@ -21,4 +21,17 @@ cat_time_filter = cat.search_by_day("2020-05-04")
 cat_aoi_filter = cat_time_filter.search_by_intersect(shapely_point)
 cat_aoi_filter = cat_time_filter.search_by_intersect(gdf)
 ```
+### Python Class **VIIRS_cleaner()**
+Create nightly VIIRS composites.
+See [Cleaning_VIIRS notebook](notebooks/Cleaning_VIIRS.ipynb) for a demo.
+```
+Inputs
+  - aws_bucket (string) - base path to AWS bucket storing nighttinme lights, should be globalnightlight
+  - catalog (len_tools.Catalog) - nightlights search object
+  - geometry (shapely polygon) - object used to crop nighttime imagery
+```
+### Requirements
+*pandas, geopandas, geojson*  
+The VIIRS cleaner method also uses *gostrocks, rasterio, and botocore*
+
 More to come...
