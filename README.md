@@ -22,7 +22,7 @@ cat_aoi_filter = cat_time_filter.search_by_intersect(shapely_point)
 cat_aoi_filter = cat_time_filter.search_by_intersect(gdf)
 ```
 ### Python Class **VIIRS_cleaner()**
-Create nightly VIIRS composites.
+Create VIIRS composites from VIIRS scenes.
 See [Cleaning_VIIRS notebook](notebooks/Cleaning_VIIRS.ipynb) for a demo.
 ```
 Inputs
