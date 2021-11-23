@@ -13,15 +13,7 @@ from shapely.geometry import shape, Point
 from GOSTRocks.misc import tPrint
 from botocore.config import Config
 from botocore import UNSIGNED
-
-# try:
-#     import eemont
-# except:
-#     print("eemont not available")
-# try:
-#     import geemap
-# except:
-#     print("geemap not available")
+import urlib.request
 
 pd.set_option('display.max_colwidth', None)
 repo_dir = os.path.dirname(os.path.realpath(__file__)) # if Notebooks could also access thorugh ..
@@ -35,7 +27,14 @@ class Catalog(object):
     '''
     def __init__(self, scenes = None):
         def load_scenes():
-            scenes = pd.read_csv(os.path.join(repo_dir, "catalog/VIIRS_Catalog_Final.csv"), index_col = 0) # nrows=5000
+            catalog_path = os.path.join(repo_dir, "catalog/VIIRS_Catalog_Final.csv")
+            if os.path.exits(catalog_path):
+                scenes = pd.read_csv(catalog_path, index_col = 0) # nrows=5000
+            else:
+                print("Downloading catalog from: https://globalnightlight.s3.amazonaws.com/metadata/VIIRS_Catalog_Final.csv")
+                print("Saving at LEN_STAC/src/catalog/VIIRS_Catalog_Final.csv")
+                urllib.request.urlretrieve("https://globalnightlight.s3.amazonaws.com/metadata/VIIRS_Catalog_Final.csv", catalog_path)
+                scenes = pd.read_csv(catalog_path, index_col = 0) # Downloading seemed more efficient instead of streaming everytime
             try:
                 scenes['date'] = pd.to_datetime(scenes.date)
                 scenes['datetime'] = pd.to_datetime(scenes.datetime)
