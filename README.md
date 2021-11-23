@@ -1,7 +1,7 @@
 # LEN_STAC
 Simple python resources to crawl and search the VIIRS NPP catalog from the [**WB Light Every Night dataset**](https://registry.opendata.aws/wb-light-every-night/).
 ## [VIIRS STAC Catalog](https://globalnightlight.s3.amazonaws.com/VIIRS_npp_catalog.json)
-[sat-stac](https://github.com/sat-utils/sat-stac) was used to crawl through the catalog and create a tabular version, saved at *src/catalog/VIIRS_Catalog_Final.csv*. See [Crawl_STAC notebook](notebooks/Crawl_STAC.ipynb).
+[sat-stac](https://github.com/sat-utils/sat-stac) was used to crawl through the catalog and create a tabular version, saved at *https://globalnightlight.s3.amazonaws.com/metadata/VIIRS_Catalog_Final.csv*. See [Crawl_STAC notebook](notebooks/Crawl_STAC.ipynb).
 ### Python Class **Catalog()**
 Inventory of VIIRS NPP scenes with some functions to search catalog by time and area of interest (shapely point or geopandas gdf).  
 See [Test_Catalog notebook](notebooks/Test_Catalog.ipynb) for examples.
