@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "AOI",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "Name": "Harare" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ 30.063115334230144, -16.850871845781164 ], [ 30.066247294141061, -18.23349269485913 ], [ 32.045645957838161, -18.236467371466176 ], [ 31.995534599263554, -16.844876788067168 ], [ 30.063115334230144, -16.850871845781164 ] ] ] } }
+]
+}

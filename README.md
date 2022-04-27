@@ -1,7 +1,7 @@
 # LEN_STAC
 Simple python resources to crawl and search the VIIRS NPP catalog from the [**WB Light Every Night dataset**](https://registry.opendata.aws/wb-light-every-night/).
 ## [VIIRS STAC Catalog](https://globalnightlight.s3.amazonaws.com/VIIRS_npp_catalog.json)
-[sat-stac](https://github.com/sat-utils/sat-stac) was used to crawl through the catalog and create a tabular version, saved at *src/catalog/VIIRS_Catalog_Final.csv*. See [Crawl_STAC notebook](notebooks/Crawl_STAC.ipynb).
+[sat-stac](https://github.com/sat-utils/sat-stac) was used to crawl through the catalog and create a tabular version, saved at *https://globalnightlight.s3.amazonaws.com/metadata/VIIRS_Catalog_Final.csv*. See [Crawl_STAC notebook](notebooks/Crawl_STAC.ipynb).
 ### Python Class **Catalog()**
 Inventory of VIIRS NPP scenes with some functions to search catalog by time and area of interest (shapely point or geopandas gdf).  
 See [Test_Catalog notebook](notebooks/Test_Catalog.ipynb) for examples.
@@ -21,4 +21,17 @@ cat_time_filter = cat.search_by_day("2020-05-04")
 cat_aoi_filter = cat_time_filter.search_by_intersect(shapely_point)
 cat_aoi_filter = cat_time_filter.search_by_intersect(gdf)
 ```
+### Python Class **VIIRS_cleaner()**
+Create VIIRS composites from VIIRS scenes.
+See [Cleaning_VIIRS notebook](notebooks/Cleaning_VIIRS.ipynb) for a demo.
+```
+Inputs
+  - aws_bucket (string) - base path to AWS bucket storing nighttinme lights, should be globalnightlight
+  - catalog (len_tools.Catalog) - nightlights search object
+  - geometry (shapely polygon) - object used to crop nighttime imagery
+```
+### Requirements
+*pandas, geopandas, geojson*  
+The VIIRS cleaner method also uses *gostrocks, rasterio, and botocore*
+
 More to come...
