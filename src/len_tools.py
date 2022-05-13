@@ -14,7 +14,7 @@ from shapely.geometry import shape, Point
 from GOSTRocks.misc import tPrint
 from botocore.config import Config
 from botocore import UNSIGNED
-import urlib.request
+import urllib.request
 
 pd.set_option('display.max_colwidth', None)
 repo_dir = os.path.dirname(os.path.realpath(__file__)) # if Notebooks could also access thorugh ..
@@ -29,7 +29,7 @@ class Catalog(object):
     def __init__(self, scenes = None):
         def load_scenes():
             catalog_path = os.path.join(repo_dir, "catalog/VIIRS_Catalog_Final.csv")
-            if os.path.exits(catalog_path):
+            if os.path.exists(catalog_path):
                 scenes = pd.read_csv(catalog_path, index_col = 0) # nrows=5000
             else:
                 print("Downloading catalog from: https://globalnightlight.s3.amazonaws.com/metadata/VIIRS_Catalog_Final.csv")

@@ -9,6 +9,7 @@ import geopandas as gpd
 from rasterio.profiles import DefaultGTiffProfile
 from datetime import datetime
 from pandas import Timestamp
+from tqdm import tqdm
 from pystac import Catalog
 from shapely.wkt import loads
 from shapely.geometry import shape, Point, Polygon
@@ -17,7 +18,7 @@ from botocore.config import Config
 from botocore import UNSIGNED
 
 
-def search_aws(s3client, bucket, endswith='', prefix=''):
+def search_aws(s3client, bucket, endswith='', prefix='', verbose=False):
     ''' Search AWS bucket for all files matching pattern
     
     Args:
@@ -34,7 +35,8 @@ def search_aws(s3client, bucket, endswith='', prefix=''):
     loops = 0
     good_file = []    
     while more_results:
-        print(f"Completed loop: {loops}")
+        if verbose:
+            print(f"Completed loop: {loops}")
         if loops > 0:
             objects = s3client.list_objects_v2(Bucket=bucket, Prefix=prefix, ContinuationToken=token)
         else:
@@ -54,7 +56,7 @@ class v_file():
         
         Args:
             v_files [list of strings] - filenames to include in pystac catalog
-            prefix [string] - directory (month) fo images
+            prefix [string] - directory (month) of images
         '''
         
         # loop through v_files
@@ -63,7 +65,8 @@ class v_file():
                 name = cFile        
                 month = name.split("_")[2][1:7]
                 year = month[:4]
-                date = datetime.strptime(name.split("_")[2][1:9], "%Y%m%d")
+                cDate = name.split("_")[2][1:9] + name.split("_")[3][1:7]
+                date = datetime.strptime(cDate, "%Y%m%d%H%M%S")
                 aws_href = f'https://globalnightlight.s3.amazonaws.com/{prefix}/{name}'
                 with rasterio.open(aws_href) as ds:
                     bounds = ds.bounds
@@ -80,9 +83,16 @@ class v_file():
                          datetime = date,
                          properties = {})
         for cFile in v_files:
-            print(cFile)
+            file_start = cFile.split("_")[0]
+            file_end = cFile.split(".")[-3]
+            asset_name = file_start
+            if file_start == "GDNBO" or file_start == "npp":
+                asset_name = file_end
+            if asset_name == "li":
+                asset_name = "lines"
+                
             cur_href = f'https://globalnightlight.s3.amazonaws.com/{prefix}/{cFile}'
-            res.add_asset(key=cFile.split("_")[0], asset=pystac.Asset(
+            res.add_asset(key=asset_name, asset=pystac.Asset(
                     href=cur_href,
                     media_type=pystac.MediaType.COG
                 ))        
